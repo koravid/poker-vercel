@@ -27,9 +27,9 @@ export default async function handler(req, res) {
   else if (stat === 'all') text = `€${buyins.toFixed(2)}\n${mtt} MTT\nABI €${abi}`;
 
   res.status(200).json({
-  buyin: `€${buyins.toFixed(2)}`,
+  buyin: `${buyins.toFixed(2)}€`,
   mtt: `${mtt}`,
-  abi: `ABI €${abi}`,
+  abi: `${abi}€`,
   all: `€${buyins.toFixed(2)} | ${mtt} MTT | ABI €${abi}`
 });
 }
