@@ -187,6 +187,24 @@ textarea{width:100%;padding:10px;font-size:11px;font-family:monospace;border:1px
   </div>
 </div>
 
+<div class="modal-overlay" id="edit-session-modal" style="display:none">
+  <div class="modal" style="width:520px;max-height:90vh;overflow-y:auto">
+    <h3>Modifier la session</h3>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px">
+      <div class="fg"><label>Date</label><input type="date" id="es-date"></div>
+      <div class="fg"><label>Résultat net (€)</label><input type="number" id="es-result" step="0.01"></div>
+      <div class="fg"><label>Durée (min)</label><input type="number" id="es-duration" min="0" step="1"></div>
+      <div class="fg"><label>Note</label><input type="text" id="es-note" placeholder="Optionnel"></div>
+    </div>
+    <div style="font-size:11px;font-weight:600;color:var(--text3);text-transform:uppercase;letter-spacing:.07em;margin-bottom:8px">Buy-ins par site</div>
+    <div style="display:flex;flex-direction:column;gap:6px;margin-bottom:16px" id="es-sites-grid"></div>
+    <div class="modal-btns">
+      <button class="btn primary sm" onclick="saveEditSession()">Enregistrer</button>
+      <button class="btn sm" onclick="closeModal('edit-session-modal')">Annuler</button>
+    </div>
+  </div>
+</div>
+
 <nav>
   <button class="nav-btn active" onclick="showPage('session',this)">♠ Session</button>
   <button class="nav-btn" onclick="showPage('history',this)">Historique</button>
@@ -702,6 +720,7 @@ function renderHistory() {
           ${s.note?`<div class="hist-info-item" style="color:var(--text3)">${s.note}</div>`:''}
         </div>
         <div class="hist-result ${dispClass}">${dispResult}</div>
+        <span style="font-size:11px;color:var(--text3);cursor:pointer;padding:2px 7px;border:1px solid var(--border);border-radius:5px;margin-left:4px;flex-shrink:0" onclick="event.stopPropagation();openEditSession(${s.id})">✎</span>
         <span class="hist-del" onclick="event.stopPropagation();delSession(${s.id})">✕</span>
       </div>
       <div class="hist-detail" id="detail-${s.id}">
@@ -779,6 +798,57 @@ async function delSession(id) {
   if (!confirm('Supprimer cette session ?')) return;
   await sb(`session_sites?session_id=eq.${id}`, 'DELETE');
   await sb(`sessions?id=eq.${id}`, 'DELETE');
+  await loadSessions();
+}
+
+let editingSessionId = null;
+
+function openEditSession(id) {
+  const s = allSessions.find(x => x.id === id);
+  if (!s) return;
+  editingSessionId = id;
+  document.getElementById('es-date').value = s.date || '';
+  document.getElementById('es-result').value = s.result ?? '';
+  document.getElementById('es-duration').value = s.duration_mins || '';
+  document.getElementById('es-note').value = s.note || '';
+  document.getElementById('es-sites-grid').innerHTML = SITES.map(si => {
+    const sd = s.sites?.[si.id];
+    return `<div style="display:flex;align-items:center;gap:10px;padding:6px 0;border-bottom:1px solid var(--border)">
+      <span style="width:8px;height:8px;border-radius:50%;background:${si.color};display:inline-block;flex-shrink:0"></span>
+      <span style="font-size:13px;font-weight:500;min-width:90px">${si.name}</span>
+      <div style="display:flex;align-items:center;gap:6px">
+        <label style="font-size:12px;color:var(--text3)">MTT</label>
+        <input type="number" id="es-mtt-${si.id}" value="${sd?.mtt||0}" min="0" step="1" style="width:70px;padding:5px 8px;font-size:13px">
+        <label style="font-size:12px;color:var(--text3)">Buy-ins €</label>
+        <input type="number" id="es-buyin-${si.id}" value="${sd?.buyin||0}" min="0" step="0.01" style="width:90px;padding:5px 8px;font-size:13px">
+      </div>
+    </div>`;
+  }).join('');
+  document.getElementById('edit-session-modal').style.display = 'flex';
+}
+
+async function saveEditSession() {
+  const id = editingSessionId;
+  const date = document.getElementById('es-date').value;
+  const result = parseFloat(document.getElementById('es-result').value);
+  const duration_mins = parseInt(document.getElementById('es-duration').value) || null;
+  const note = document.getElementById('es-note').value || null;
+  if (isNaN(result)) { alert('Résultat invalide.'); return; }
+  let totalBuyin = 0, totalMtt = 0;
+  SITES.forEach(si => {
+    totalBuyin += parseFloat(document.getElementById(`es-buyin-${si.id}`).value) || 0;
+    totalMtt += parseInt(document.getElementById(`es-mtt-${si.id}`).value) || 0;
+  });
+  await sb(`sessions?id=eq.${id}`, 'PATCH', { date, result, total_buyin: totalBuyin, total_mtt: totalMtt, duration_mins, note });
+  await sb(`session_sites?session_id=eq.${id}`, 'DELETE');
+  for (const si of SITES) {
+    const mtt = parseInt(document.getElementById(`es-mtt-${si.id}`).value) || 0;
+    const buyin = parseFloat(document.getElementById(`es-buyin-${si.id}`).value) || 0;
+    if (mtt > 0 || buyin > 0) {
+      await sb('session_sites', 'POST', { session_id: id, site: si.id, mtt, buyin });
+    }
+  }
+  closeModal('edit-session-modal');
   await loadSessions();
 }
 
@@ -875,18 +945,6 @@ buildBuyinGrid();
 renderNavBankrolls();
 renderBrResultGrid();
 init();
-
-// Polling toutes les 2 secondes pour détecter les buy-ins Stream Deck
-setInterval(async () => {
-  try {
-    const fresh = await getSession();
-    const changed = JSON.stringify(fresh) !== JSON.stringify(currentSession);
-    if (changed) {
-      currentSession = fresh;
-      updateSessionUI();
-    }
-  } catch(e) {}
-}, 2000);
 </script>
 </body>
 </html>
