@@ -26,6 +26,10 @@ export default async function handler(req, res) {
   else if (stat === 'abi') text = `ABI €${abi}`;
   else if (stat === 'all') text = `€${buyins.toFixed(2)}\n${mtt} MTT\nABI €${abi}`;
 
-  res.setHeader('Content-Type', 'text/plain');
-  res.status(200).send(text);
+  res.status(200).json({
+  buyin: `€${buyins.toFixed(2)}`,
+  mtt: `${mtt} MTT`,
+  abi: `ABI €${abi}`,
+  all: `€${buyins.toFixed(2)} | ${mtt} MTT | ABI €${abi}`
+});
 }
