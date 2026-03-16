@@ -15,35 +15,19 @@ export default async function handler(req, res) {
   if (req.method === 'OPTIONS') return res.status(200).end();
 
   const url = new URL(req.url, `https://${req.headers.host}`);
-  const pathname = url.pathname.replace('/api/', '');
   const site = url.searchParams.get('site') || req.body?.site;
   const amount = parseFloat(url.searchParams.get('amount') || req.body?.amount);
 
-  // POST /api/buyin?site=wina&amount=5
-  if (req.method === 'POST' && pathname === 'buyin') {
-    if (!SITES.includes(site) || isNaN(amount) || amount <= 0)
-      return res.status(400).json({ error: 'Paramètres invalides' });
-    const rows = await sb('current_session?id=eq.1');
-    const data = rows?.[0]?.data || {};
-    if (!data.buyins) data.buyins = {};
-    if (!data.mtt) data.mtt = {};
-    SITES.forEach(id => { if (!data.buyins[id]) data.buyins[id] = 0; if (!data.mtt[id]) data.mtt[id] = 0; });
-    data.buyins[site] = (data.buyins[site] || 0) + amount;
-    data.mtt[site] = (data.mtt[site] || 0) + 1;
-    await sb('current_session?id=eq.1', 'PATCH', { data });
-    return res.status(200).json({ ok: true, session: data });
-  }
+  if (!SITES.includes(site) || isNaN(amount) || amount <= 0)
+    return res.status(400).json({ error: 'Paramètres invalides: site=' + site + ' amount=' + amount });
 
-  // DELETE /api/session — reset
-  if (req.method === 'DELETE' && pathname === 'session') {
-    const empty = { buyins: {}, mtt: {} };
-    SITES.forEach(id => { empty.buyins[id] = 0; empty.mtt[id] = 0; });
-    await sb('current_session?id=eq.1', 'PATCH', { data: empty });
-    return res.status(200).json({ ok: true });
-  }
-
-  // GET /api/ping
-  if (pathname === 'ping') return res.status(200).json({ ok: true });
-
-  return res.status(404).json({ error: 'Not found' });
+  const rows = await sb('current_session?id=eq.1');
+  const data = rows?.[0]?.data || {};
+  if (!data.buyins) data.buyins = {};
+  if (!data.mtt) data.mtt = {};
+  SITES.forEach(id => { if (!data.buyins[id]) data.buyins[id] = 0; if (!data.mtt[id]) data.mtt[id] = 0; });
+  data.buyins[site] = (data.buyins[site] || 0) + amount;
+  data.mtt[site] = (data.mtt[site] || 0) + 1;
+  await sb('current_session?id=eq.1', 'PATCH', { data });
+  return res.status(200).json({ ok: true, session: data });
 }
