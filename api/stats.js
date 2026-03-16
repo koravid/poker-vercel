@@ -28,7 +28,7 @@ export default async function handler(req, res) {
 
   res.status(200).json({
   buyin: `€${buyins.toFixed(2)}`,
-  mtt: `${mtt} MTT`,
+  mtt: `${mtt}`,
   abi: `ABI €${abi}`,
   all: `€${buyins.toFixed(2)} | ${mtt} MTT | ABI €${abi}`
 });
